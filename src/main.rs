@@ -5,12 +5,16 @@ use ggez::{Context, ContextBuilder, GameResult};
 
 mod emu;
 
+// this file essentially comes from the ggez template
+// look there if you want more explanation for what all these things do
+// otherwise you can check stuff out with intellisense
+
 fn main() {
     // CHIP-8s use a 32 x 64 pixel screen!
     let width = 64;
     let height = 32;
 
-    // Make a Context.
+    // Make a Context...
     let cb = ContextBuilder::new("Rite", "ash")
         .window_setup(WindowSetup::default().title("Rite"))
         .window_mode(WindowMode::default().dimensions((width * 15) as f32, (height * 15) as f32));
@@ -33,7 +37,6 @@ struct MainState {
 
 impl MainState {
     pub fn new(ctx: &mut Context) -> MainState {
-        // Load/create resources such as images here.
         let mut squares: Vec<Mesh> = vec![];
         for i in 0..32 {
             for j in 0..64 {
