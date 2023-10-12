@@ -17,7 +17,7 @@ fn main() {
 
     // Make a Context...
     let cb = ContextBuilder::new("Rite", "ash")
-        .window_setup(WindowSetup::default().title("Rite"))
+        .window_setup(WindowSetup::default().title("rite-emu"))
         .window_mode(WindowMode::default().dimensions((width * 15) as f32, (height * 15) as f32));
 
     let (mut ctx, event_loop) = cb.build().expect("guh, could not create ggez context.");
