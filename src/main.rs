@@ -2,9 +2,14 @@ use ggez::conf::{WindowMode, WindowSetup};
 use ggez::event::{self, EventHandler};
 use ggez::graphics::{self, Canvas, Color, DrawParam, Mesh};
 use ggez::input::keyboard;
+use ggez::timer::{self, sleep, TimeContext};
 use ggez::{Context, ContextBuilder, GameResult};
 
+use std::fs::read;
+use std::io::stdin;
+
 mod emu;
+use emu::{Emu, EmulationError};
 
 // this file essentially comes from the ggez template
 // look there if you want more explanation for what all these things do
@@ -22,10 +27,16 @@ fn main() {
 
     let (mut ctx, event_loop) = cb.build().expect("guh, could not create ggez context.");
 
-    // Create an instance of your event handler.
-    // Usually, you should provide it with the Context object to
-    // use when setting your game up.
-    let state = MainState::new(&mut ctx);
+    // get filepath for ROM
+    println!("relative path to ROM: ");
+    let mut filepath = String::new();
+    stdin()
+        .read_line(&mut filepath)
+        .expect("failed to read line");
+    // get ROM data
+    let rom = read(filepath).expect("Error reading the given ROM filepath");
+
+    let state = MainState::new(&mut ctx, rom).expect("ROM file exceeds 4 kB");
 
     // Run!
     event::run(ctx, event_loop, state);
@@ -37,7 +48,7 @@ struct MainState {
 }
 
 impl MainState {
-    pub fn new(ctx: &mut Context) -> MainState {
+    pub fn new(ctx: &mut Context, rom: Vec<u8>) -> Result<MainState, EmulationError> {
         let mut squares: Vec<Mesh> = vec![];
         for i in 0..32 {
             for j in 0..64 {
@@ -57,16 +68,18 @@ impl MainState {
                 squares.push(rectangle.unwrap());
             }
         }
-        MainState {
-            emulator: emu::Emu::new(),
-            squares,
-        }
+
+        let mut emulator = emu::Emu::new();
+        emulator.read_rom(rom);
+
+        Ok(MainState { emulator, squares })
     }
 }
 
 impl EventHandler for MainState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        // Update code here...
+        // Something here about doing so many instructions per frame
+        // utilize a TimeContext for this
         Ok(())
     }
 

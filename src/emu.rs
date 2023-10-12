@@ -1,5 +1,17 @@
-enum EmulationError {
+use std::fmt::Debug;
+
+pub enum EmulationError {
     StackOverflow,
+    LoadingError,
+}
+
+impl Debug for EmulationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::StackOverflow => write!(f, "emulated stack overflowed"),
+            Self::LoadingError => write!(f, "ROM failed to load, file likely exceeds 4 kB"),
+        }
+    }
 }
 
 /// Represents the actual emulation of a CHIP-8 system.
@@ -75,6 +87,19 @@ impl Emu {
             sound_timer: 0,
             variables: vec![0; 16], // should always have only 16 elements
         }
+    }
+
+    pub fn read_rom(&mut self, rom: Vec<u8>) -> Result<(), EmulationError> {
+        let mut rom_iter = rom.iter();
+        let mut current_address = 0x200;
+        while let Some(data) = rom_iter.next() {
+            if current_address >= 4096 {
+                return Err(EmulationError::LoadingError);
+            }
+            self.memory[current_address] = *data;
+            current_address += 1;
+        }
+        Ok(())
     }
 
     /// Pushing to the stack with the mandate of a 16 entry limit
