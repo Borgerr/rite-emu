@@ -69,10 +69,10 @@ impl Emu {
             the_stack: vec![],
             memory,
             // maybe change these later VVV
-            pc: 0,
+            pc: 0x200, // program loads at index 512
             i: 0,
-            delay_timer: 255,
-            sound_timer: 255,
+            delay_timer: 0, // special instructions for incrementing the timers
+            sound_timer: 0,
             variables: vec![0; 16], // should always have only 16 elements
         }
     }
