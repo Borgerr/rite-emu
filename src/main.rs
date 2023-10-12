@@ -78,9 +78,20 @@ impl MainState {
 }
 
 impl EventHandler for MainState {
-    fn update(&mut self, _ctx: &mut Context) -> GameResult {
+    fn update(&mut self, ctx: &mut Context) -> GameResult {
         // Something here about doing so many instructions per frame
         // utilize a TimeContext for this
+        const DESIRED_FPS: u32 = 60;
+
+        if ctx.time.check_update_time(DESIRED_FPS) {
+            // check if we're on target for 60 fps
+            // and if so, do the thing.
+            for _i in 0..11 {
+                // 10-12 instructions per frame at 60 FPS
+                self.emulator.fetch_decode_execute_instr();
+            }
+            println!("{}", ctx.time.fps());
+        }
         Ok(())
     }
 
