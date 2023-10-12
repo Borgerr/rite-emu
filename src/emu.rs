@@ -36,6 +36,7 @@ impl Emu {
         // font stuff. this is a LOT of hex,
         // but this is basically just the standard font to use with CHIP-8.
         // Each line corresponds to a sprite for its commented character
+        // everything up to fonts was originally reserved for the CHIP-8 interpreter.
         let fonts = vec![
             // load font data
             0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -116,5 +117,57 @@ impl Emu {
         } else {
             self.delay_timer = 255;
         }
+    }
+
+    // -----------
+    // KEYPRESSES
+    // -----------
+    pub fn keypad_1_press(&mut self) {
+        println!("COSMAC VIP layout 1 key pressed");
+    }
+    pub fn keypad_2_press(&mut self) {
+        println!("COSMAC VIP layout 2 key pressed");
+    }
+    pub fn keypad_3_press(&mut self) {
+        println!("COSMAC VIP layout 3 key pressed");
+    }
+    pub fn keypad_c_press(&mut self) {
+        println!("COSMAC VIP layout C key pressed");
+    }
+    pub fn keypad_4_press(&mut self) {
+        println!("COSMAC VIP layout 4 key pressed");
+    }
+    pub fn keypad_5_press(&mut self) {
+        println!("COSMAC VIP layout 5 key pressed");
+    }
+    pub fn keypad_6_press(&mut self) {
+        println!("COSMAC VIP layout 6 key pressed");
+    }
+    pub fn keypad_d_press(&mut self) {
+        println!("COSMAC VIP layout D key pressed");
+    }
+    pub fn keypad_7_press(&mut self) {
+        println!("COSMAC VIP layout 7 key pressed");
+    }
+    pub fn keypad_8_press(&mut self) {
+        println!("COSMAC VIP layout 8 key pressed");
+    }
+    pub fn keypad_9_press(&mut self) {
+        println!("COSMAC VIP layout 9 key pressed");
+    }
+    pub fn keypad_e_press(&mut self) {
+        println!("COSMAC VIP layout E key pressed");
+    }
+    pub fn keypad_a_press(&mut self) {
+        println!("COSMAC VIP layout A key pressed");
+    }
+    pub fn keypad_0_press(&mut self) {
+        println!("COSMAC VIP layout 0 key pressed");
+    }
+    pub fn keypad_b_press(&mut self) {
+        println!("COSMAC VIP layout B key pressed");
+    }
+    pub fn keypad_f_press(&mut self) {
+        println!("COSMAC VIP layout F key pressed");
     }
 }
