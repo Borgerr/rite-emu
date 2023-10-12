@@ -33,6 +33,7 @@ impl Emu {
     /// but without the actual program.
     pub fn new() -> Self {
         let mut memory: Vec<u8> = vec![0; 4096];
+
         // font stuff. this is a LOT of hex,
         // but this is basically just the standard font to use with CHIP-8.
         // Each line corresponds to a sprite for its commented character
@@ -119,6 +120,52 @@ impl Emu {
         }
     }
 
+    /// the main portion of our emulated interpreter
+    /// where we call all the individual components of the
+    /// fetch, decode, execute loop.
+    /// This alters the `Emu`'s state,
+    /// but should not return anything since pixel data is
+    /// accessible from outside,
+    /// and that's really all that should be reflected.
+    pub fn fetch_decode_execute_instr(&mut self) {
+        let opcode = self.fetch_instruction();
+        self.decode_and_execute(opcode);
+    }
+
+    /// returns the 16 bit combination of two successive bytes
+    /// with relation to instructions
+    fn fetch_instruction(&mut self) -> u16 {
+        let upper_half = (self.memory[self.pc as usize] as u16) << 8;
+        self.pc += 1;
+        let lower_half = self.memory[self.pc as usize] as u16;
+        self.pc += 1;
+        upper_half + lower_half
+    }
+
+    /// CHIP-8s have a very simple instruction set,
+    /// so we combine these two steps into one,
+    /// and then send that information off to some other thing.
+    fn decode_and_execute(&mut self, opcode: u16) {
+        let (instr_type, x, y, n, nn, nnn) = Self::extract_from_opcode(opcode);
+    }
+
+    /// extracts information from an opcode.
+    ///
+    /// # Arguments
+    /// * `opcode` - 16-bit opcode from which we get our information
+    fn extract_from_opcode(opcode: u16) -> (u16, u16, u16, u16, u16, u16) {
+        let instr_type = opcode >> 12; // extracting first nibble
+        let x = (opcode >> 8) & 0b1111; // extracting the second nibble
+                                        // `& 0b1111` discards the first nibble
+        let y = (opcode >> 4) & 0b1111; // extracting the third nibble
+        let n = opcode & 0b1111; // simply disregarding all but the last nibble
+        let nn = opcode & 0xFF; // extracting the second byte
+        let nnn = opcode & 0xFFF; // extracting the second, third, and fourth nibbles
+                                  // as one 12-bit number (used for memory addresses)
+
+        (instr_type, x, y, n, nn, nnn)
+    }
+
     // -----------
     // KEYPRESSES
     // -----------
@@ -170,4 +217,34 @@ impl Emu {
     pub fn keypad_f_press(&mut self) {
         println!("COSMAC VIP layout F key pressed");
     }
+}
+
+#[test]
+fn test_instruction_fetch() {
+    // tests on the first two bytes of font data
+    // that the return is correct
+    let mut emulator = Emu::new();
+    emulator.pc = 0x050;
+    assert_eq!(emulator.fetch_instruction(), 0xF090);
+}
+
+#[test]
+fn test_opcode_extraction() {
+    // just getting a lot of arbitrary hex
+    // and seeing if it all works
+    let first_nibble = 0x1;
+    let second_nibble = 0xa;
+    let third_nibble = 0xc;
+    let fourth_nibble = 0x9;
+    let nibbles_34 = 0xc9;
+    let nibbles_234 = 0xac9;
+
+    let (instr_type, x, y, n, nn, nnn) = Emu::extract_from_opcode(0x1ac9);
+
+    assert_eq!(first_nibble, instr_type);
+    assert_eq!(second_nibble, x);
+    assert_eq!(third_nibble, y);
+    assert_eq!(fourth_nibble, n);
+    assert_eq!(nibbles_34, nn);
+    assert_eq!(nibbles_234, nnn);
 }
