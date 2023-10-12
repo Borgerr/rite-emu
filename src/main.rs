@@ -2,7 +2,6 @@ use ggez::conf::{WindowMode, WindowSetup};
 use ggez::event::{self, EventHandler};
 use ggez::graphics::{self, Canvas, Color, DrawParam, Mesh};
 use ggez::input::keyboard;
-use ggez::timer::{self, sleep, TimeContext};
 use ggez::{Context, ContextBuilder, GameResult};
 
 use std::fs::read;
@@ -90,13 +89,12 @@ impl EventHandler for MainState {
                 // 10-12 instructions per frame at 60 FPS
                 self.emulator.fetch_decode_execute_instr();
             }
-            println!("{}", ctx.time.fps());
         }
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        let mut canvas = Canvas::from_frame(ctx, Color::WHITE);
+        let mut canvas = Canvas::from_frame(ctx, None);
         for i in 0..(64 * 32) {
             if self.emulator.pixels[i] {
                 // pixel is turned on
