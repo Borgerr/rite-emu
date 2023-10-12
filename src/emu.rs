@@ -163,13 +163,6 @@ impl Emu {
         upper_half + lower_half
     }
 
-    /// CHIP-8s have a very simple instruction set,
-    /// so we combine these two steps into one,
-    /// and then send that information off to some other thing.
-    fn decode_and_execute(&mut self, opcode: u16) {
-        let (instr_type, x, y, n, nn, nnn) = Self::extract_from_opcode(opcode);
-    }
-
     /// extracts information from an opcode.
     ///
     /// # Arguments
@@ -185,6 +178,76 @@ impl Emu {
                                   // as one 12-bit number (used for memory addresses)
 
         (instr_type, x, y, n, nn, nnn)
+    }
+
+    /// CHIP-8s have a very simple instruction set,
+    /// so we combine these two steps into one,
+    /// and then send that information off to some other thing.
+    fn decode_and_execute(&mut self, opcode: u16) {
+        if opcode == 0x00e0 {
+            self.clear_screen();
+        }
+        let (instr_type, x, y, n, nn, nnn) = Self::extract_from_opcode(opcode);
+        match instr_type {
+            0x1 => self.jump(nnn),
+            0x6 => self.set_register(x, nn),
+            0x7 => self.add_val_to_register(x, nn),
+            0xa => self.set_index_register(nnn),
+            0xd => self.display(x, y, n),
+            _ => (),
+        }
+    }
+
+    // -------------
+    // INSTRUCTIONS
+    // -------------
+
+    /// # `00E0`
+    /// Turns the entire screen off.
+    fn clear_screen(&mut self) {
+        self.pixels = vec![false; 64 * 32];
+    }
+
+    /// # `1NNN`
+    /// Sets the program counter to `NNN`.
+    fn jump(&mut self, nnn: u16) {
+        self.pc = nnn;
+    }
+
+    /// # `6XNN`
+    /// Sets register `VX` to value `NN`.
+    fn set_register(&mut self, x: u16, nn: u16) {
+        self.variables[x as usize] = nn as u8;
+    }
+
+    /// # `7XNN`
+    /// Adds the value `NN` to register `VX`.
+    fn add_val_to_register(&mut self, x: u16, nn: u16) {
+        let mut temp = self.variables[x as usize] as u16;
+        temp += nn;
+        if temp > 255 {
+            temp -= 256;
+        }
+        self.variables[x as usize] = temp as u8;
+    }
+
+    /// # `ANNN`
+    /// Sets the index register to `NNN`.
+    fn set_index_register(&mut self, nnn: u16) {
+        self.i = nnn;
+    }
+
+    /// # `DXYN`
+    /// Draws an `N` pixels tall sprite from memory location
+    /// that the index register is currently pointing at,
+    /// at horizontal X coordinate in `VX` and vertical Y coordinate in `VY`.
+    /// All pixels that are "on" will flip the pixels on the screen.
+    ///
+    /// If any pixels on the screen were turned "off" by doing this,
+    /// `VF` register is set to 1. Otherwise, it's set to 0.
+    fn display(&mut self, x: u16, y: u16, n: u16) {
+        let x = self.variables[x as usize];
+        let y = self.variables[y as usize];
     }
 
     // -----------
