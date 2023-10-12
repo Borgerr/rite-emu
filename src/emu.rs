@@ -106,8 +106,6 @@ impl Emu {
     pub fn decrement_delay(&mut self) {
         if self.delay_timer > 0 {
             self.delay_timer -= 1;
-        } else {
-            self.delay_timer = 255;
         }
     }
     /// Decrements `sound_timer`,
@@ -115,8 +113,6 @@ impl Emu {
     pub fn decrement_sound(&mut self) {
         if self.sound_timer > 0 {
             self.sound_timer -= 1;
-        } else {
-            self.delay_timer = 255;
         }
     }
 
