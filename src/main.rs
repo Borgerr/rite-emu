@@ -33,10 +33,11 @@ fn main() {
     stdin()
         .read_line(&mut filepath)
         .expect("failed to read line");
+    filepath = filepath.trim().to_string();
     // get ROM data
     let rom = read(filepath).expect("Error reading the given ROM filepath");
 
-    let state = MainState::new(&mut ctx, rom).expect("ROM file exceeds 4 kB");
+    let state = MainState::new(&mut ctx, rom).expect("Error reading the given ROM filepath");
 
     // Run!
     event::run(ctx, event_loop, state);
@@ -69,8 +70,8 @@ impl MainState {
             }
         }
 
-        let mut emulator = emu::Emu::new();
-        emulator.read_rom(rom);
+        let mut emulator = Emu::new();
+        let _ = emulator.read_rom(rom);
 
         Ok(MainState { emulator, squares })
     }
