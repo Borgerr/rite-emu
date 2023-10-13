@@ -184,16 +184,33 @@ impl Emu {
     /// so we combine these two steps into one,
     /// and then send that information off to some other thing.
     fn decode_and_execute(&mut self, opcode: u16) {
-        if opcode == 0x00e0 {
-            self.clear_screen();
-        }
         let (instr_type, x, y, n, nn, nnn) = Self::extract_from_opcode(opcode);
         match instr_type {
+            0x0 => match nnn {
+                0x0e0 => self.clear_screen(),
+                0x0ee => self.return_from_subroutine(),
+                _ => (),
+            },
             0x1 => self.jump(nnn),
             0x6 => self.set_register(x, nn),
             0x7 => self.add_val_to_register(x, nn),
             0xa => self.set_index_register(nnn),
             0xd => self.display(x, y, n),
+            0x2 => self.call_subroutine(nnn),
+            0x3 => self.skip_if_vx_eq_nn(x, nn),
+            0x4 => self.skip_if_vx_neq_nn(x, nn),
+            0x5 => self.skip_if_vx_eq_vy(x, y),
+            0x9 => self.skip_if_vx_neq_vy(x, y),
+            0x8 => match n {
+                0x0 => self.set_vx_to_vy(x, y),
+                0x1 => self.vx_oreq_vy(x, y),
+                0x2 => self.vx_andeq_vy(x, y),
+                0x3 => self.vx_xoreq_vy(x, y),
+                0x4 => self.vx_pluseq_vy(x, y),
+                0x5 => self.vx_minuseq_vy(x, y),
+                0x7 => self.vx_equals_vy_minus_vx(x, y),
+                _ => (),
+            },
             _ => (),
         }
     }
@@ -236,6 +253,123 @@ impl Emu {
     fn set_index_register(&mut self, nnn: u16) {
         self.i = nnn;
     }
+
+    /// # `2NNN`
+    /// PC is set to `NNN`, and the previous PC is pushed on the stack,
+    /// so we can return to that later.
+    fn call_subroutine(&mut self, nnn: u16) {
+        self.stack_push(self.pc);
+        self.pc = nnn;
+    }
+
+    /// # `00EE`
+    /// Returning from a subroutine by setting the program counter
+    /// to whatever is popped from the stack.
+    fn return_from_subroutine(&mut self) {
+        self.pc = self.stack_pop();
+    }
+
+    /// # `3XNN`
+    /// Skips one instruction if value in `VX` is equal to `NN`.
+    fn skip_if_vx_eq_nn(&mut self, x: u16, nn: u16) {
+        if self.variables[x as usize] == nn as u8 {
+            self.pc += 2;
+        }
+    }
+
+    /// # `4XNN`
+    /// Skips one instruction if the value in `VX` is not equal to `NN`.
+    fn skip_if_vx_neq_nn(&mut self, x: u16, nn: u16) {
+        if self.variables[x as usize] != nn as u8 {
+            self.pc += 2;
+        }
+    }
+
+    /// # `5XY0`
+    /// Skips one instruction if the value in `VX` is equal to the value in `VY`.
+    fn skip_if_vx_eq_vy(&mut self, x: u16, y: u16) {
+        if self.variables[x as usize] == self.variables[y as usize] {
+            self.pc += 2;
+        }
+    }
+
+    /// # `9XY0`
+    /// Skips one instruction if the value in `VX` is not equal to the value in `VY`.
+    fn skip_if_vx_neq_vy(&mut self, x: u16, y: u16) {
+        if self.variables[x as usize] != self.variables[y as usize] {
+            self.pc += 2;
+        }
+    }
+
+    /// # `8XY0`
+    /// `VX` is set to the value of `VY`.
+    fn set_vx_to_vy(&mut self, x: u16, y: u16) {
+        self.variables[x as usize] = self.variables[y as usize];
+    }
+
+    /// # `8XY1`
+    /// `VX` is set to the OR of `VX` and `VY`, leaving `VY` unaffected.
+    fn vx_oreq_vy(&mut self, x: u16, y: u16) {
+        self.variables[x as usize] |= self.variables[y as usize];
+    }
+
+    /// # `8XY2`
+    /// `VX` is set to the AND of `VX` and `VY`, leaving `VY` unaffected.
+    fn vx_andeq_vy(&mut self, x: u16, y: u16) {
+        self.variables[x as usize] &= self.variables[y as usize];
+    }
+
+    /// # `8XY3`
+    /// `VX` is set to the XOR of `VX` and `VY`, leaving `VY` unaffected.
+    fn vx_xoreq_vy(&mut self, x: u16, y: u16) {
+        self.variables[x as usize] ^= self.variables[y as usize];
+    }
+
+    /// # `8XY4`
+    /// `VX` is set to the value of `VX` plus the value of `VY`, leaving `VY` unaffected.
+    /// If the result is larger than 255, the flag register `VF` is set to 1.
+    fn vx_pluseq_vy(&mut self, x: u16, y: u16) {
+        self.variables[0xf] = 0;
+        let mut result: u32 =
+            (self.variables[x as usize] as u32) + (self.variables[y as usize] as u32);
+        if result >= 256 {
+            result -= 256;
+            self.variables[0xf] = 1;
+        }
+        self.variables[x as usize] = result as u8;
+    }
+
+    /// # `8XY5`
+    /// `VX` is set to the value of `VX` minus the value of `VY`, leaving `VY` unaffected.
+    /// If the result has underflow, `VF` is set to 0. Otherwise, `VF` is set to 1.
+    fn vx_minuseq_vy(&mut self, x: u16, y: u16) {
+        self.variables[0xf] = 1;
+        let mut x_val = self.variables[x as usize] as i16;
+        let y_val = self.variables[y as usize] as i16;
+        x_val -= y_val;
+        if x_val < 0 {
+            x_val += 256;
+            self.variables[0xf] = 0;
+        }
+        self.variables[x as usize] = x_val as u8;
+    }
+
+    /// # `8XY7`
+    /// `VX` is set to the value of `VY` minus the value of `VX`, leaving `VY` unaffected.
+    /// If the result has underflow, `VX` is set to 0. Otherwise, `VF` is set to 1.
+    fn vx_equals_vy_minus_vx(&mut self, x: u16, y: u16) {
+        self.variables[0xf] = 1;
+        let x_val = self.variables[x as usize] as i16;
+        let mut y_val = self.variables[y as usize] as i16;
+        y_val -= x_val;
+        if y_val < 0 {
+            y_val += 256;
+            self.variables[0xf] = 0;
+        }
+        self.variables[x as usize] = y_val as u8;
+    }
+
+    // TODO: shift instructions and beyond
 
     /// # `DXYN`
     /// Draws an `N` pixels tall sprite from memory location
