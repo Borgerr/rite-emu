@@ -1,6 +1,6 @@
 use ggez::conf::{WindowMode, WindowSetup};
 use ggez::event::{self, EventHandler};
-use ggez::graphics::{self, Canvas, Color, DrawParam, Mesh};
+use ggez::graphics::{self, Canvas, Color, DrawParam};
 use ggez::input::keyboard;
 use ggez::{Context, ContextBuilder, GameResult};
 
@@ -44,11 +44,10 @@ fn main() {
 
 struct MainState {
     emulator: emu::Emu,
-    squares: Vec<Mesh>, // the actually drawn representation of pixels
 }
 
 impl MainState {
-    pub fn new(ctx: &mut Context, rom: Vec<u8>) -> Result<MainState, EmulationError> {
+    pub fn new(_ctx: &mut Context, rom: Vec<u8>) -> Result<MainState, EmulationError> {
         /*
         let mut squares: Vec<Mesh> = vec![];
         for i in 0..32 {
@@ -72,12 +71,9 @@ impl MainState {
         */
 
         let mut emulator = Emu::new();
-        let _ = emulator.read_rom(rom);
+        emulator.read_rom(rom)?;
 
-        Ok(MainState {
-            emulator,
-            squares: vec![],
-        })
+        Ok(MainState { emulator })
     }
 }
 
@@ -92,7 +88,10 @@ impl EventHandler for MainState {
             // and if so, do the thing.
             for _i in 0..11 {
                 // 10-12 instructions per frame at 60 FPS
-                self.emulator.fetch_decode_execute_instr();
+                if let Err(e) = self.emulator.fetch_decode_execute_instr() {
+                    println!("!ENCOUNTERED EMULATION ERROR!\n{}", e);
+                    ctx.request_quit();
+                }
             }
         }
         Ok(())

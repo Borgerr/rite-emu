@@ -1,8 +1,9 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 pub enum EmulationError {
-    StackOverflow,
-    LoadingError,
+    StackOverflow, // emulated stack exceeds 16 entries
+    LoadingError, // invoked when the ROM tried to load is larger than 4 kB, or something else happens
+    VacantMemory, // invoked when we run into a sequence of 0000s or similar
 }
 
 impl Debug for EmulationError {
@@ -10,6 +11,23 @@ impl Debug for EmulationError {
         match self {
             Self::StackOverflow => write!(f, "emulated stack overflowed"),
             Self::LoadingError => write!(f, "ROM failed to load, file likely exceeds 4 kB"),
+            Self::VacantMemory => write!(
+                f,
+                "ROM ran out of memory and encountered an instruction like 0000"
+            ),
+        }
+    }
+}
+
+impl Display for EmulationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::StackOverflow => write!(f, "emulated stack overflowed"),
+            Self::LoadingError => write!(f, "ROM failed to load, file likely exceeds 4 kB"),
+            Self::VacantMemory => write!(
+                f,
+                "ROM ran out of memory and encountered an instruction like 0000"
+            ),
         }
     }
 }
@@ -148,9 +166,9 @@ impl Emu {
     /// but should not return anything since pixel data is
     /// accessible from outside,
     /// and that's really all that should be reflected.
-    pub fn fetch_decode_execute_instr(&mut self) {
+    pub fn fetch_decode_execute_instr(&mut self) -> Result<(), EmulationError> {
         let opcode = self.fetch_instruction();
-        self.decode_and_execute(opcode);
+        self.decode_and_execute(opcode)
     }
 
     /// returns the 16 bit combination of two successive bytes
@@ -183,13 +201,14 @@ impl Emu {
     /// CHIP-8s have a very simple instruction set,
     /// so we combine these two steps into one,
     /// and then send that information off to some other thing.
-    fn decode_and_execute(&mut self, opcode: u16) {
+    fn decode_and_execute(&mut self, opcode: u16) -> Result<(), EmulationError> {
         let (instr_type, x, y, n, nn, nnn) = Self::extract_from_opcode(opcode);
         match instr_type {
             0x0 => match nnn {
                 0x0e0 => self.clear_screen(),
                 0x0ee => self.return_from_subroutine(),
-                _ => (),
+                0x000 => Err(EmulationError::VacantMemory),
+                _ => Ok(()),
             },
             0x1 => self.jump(nnn),
             0x6 => self.set_register(x, nn),
@@ -209,9 +228,9 @@ impl Emu {
                 0x4 => self.vx_pluseq_vy(x, y),
                 0x5 => self.vx_minuseq_vy(x, y),
                 0x7 => self.vx_equals_vy_minus_vx(x, y),
-                _ => (),
+                _ => Ok(()),
             },
-            _ => (),
+            _ => Ok(()),
         }
     }
 
@@ -221,114 +240,129 @@ impl Emu {
 
     /// # `00E0`
     /// Turns the entire screen off.
-    fn clear_screen(&mut self) {
+    fn clear_screen(&mut self) -> Result<(), EmulationError> {
         self.pixels = vec![false; 64 * 32];
+        Ok(())
     }
 
     /// # `1NNN`
     /// Sets the program counter to `NNN`.
-    fn jump(&mut self, nnn: u16) {
+    fn jump(&mut self, nnn: u16) -> Result<(), EmulationError> {
         self.pc = nnn;
+        Ok(())
     }
 
     /// # `6XNN`
     /// Sets register `VX` to value `NN`.
-    fn set_register(&mut self, x: u16, nn: u16) {
+    fn set_register(&mut self, x: u16, nn: u16) -> Result<(), EmulationError> {
         self.variables[x as usize] = nn as u8;
+        Ok(())
     }
 
     /// # `7XNN`
     /// Adds the value `NN` to register `VX`.
-    fn add_val_to_register(&mut self, x: u16, nn: u16) {
+    fn add_val_to_register(&mut self, x: u16, nn: u16) -> Result<(), EmulationError> {
         let mut temp = self.variables[x as usize] as u16;
         temp += nn;
         if temp > 255 {
             temp -= 256;
         }
         self.variables[x as usize] = temp as u8;
+        Ok(())
     }
 
     /// # `ANNN`
     /// Sets the index register to `NNN`.
-    fn set_index_register(&mut self, nnn: u16) {
+    fn set_index_register(&mut self, nnn: u16) -> Result<(), EmulationError> {
         self.i = nnn;
+        Ok(())
     }
 
     /// # `2NNN`
     /// PC is set to `NNN`, and the previous PC is pushed on the stack,
     /// so we can return to that later.
-    fn call_subroutine(&mut self, nnn: u16) {
-        self.stack_push(self.pc);
+    fn call_subroutine(&mut self, nnn: u16) -> Result<(), EmulationError> {
+        self.stack_push(self.pc)?;
         self.pc = nnn;
+        Ok(())
     }
 
     /// # `00EE`
     /// Returning from a subroutine by setting the program counter
     /// to whatever is popped from the stack.
-    fn return_from_subroutine(&mut self) {
+    fn return_from_subroutine(&mut self) -> Result<(), EmulationError> {
         self.pc = self.stack_pop();
+        Ok(())
     }
 
     /// # `3XNN`
     /// Skips one instruction if value in `VX` is equal to `NN`.
-    fn skip_if_vx_eq_nn(&mut self, x: u16, nn: u16) {
+    fn skip_if_vx_eq_nn(&mut self, x: u16, nn: u16) -> Result<(), EmulationError> {
         if self.variables[x as usize] == nn as u8 {
             self.pc += 2;
         }
+        Ok(())
     }
 
     /// # `4XNN`
     /// Skips one instruction if the value in `VX` is not equal to `NN`.
-    fn skip_if_vx_neq_nn(&mut self, x: u16, nn: u16) {
+    fn skip_if_vx_neq_nn(&mut self, x: u16, nn: u16) -> Result<(), EmulationError> {
         if self.variables[x as usize] != nn as u8 {
             self.pc += 2;
         }
+        Ok(())
     }
 
     /// # `5XY0`
     /// Skips one instruction if the value in `VX` is equal to the value in `VY`.
-    fn skip_if_vx_eq_vy(&mut self, x: u16, y: u16) {
+    fn skip_if_vx_eq_vy(&mut self, x: u16, y: u16) -> Result<(), EmulationError> {
         if self.variables[x as usize] == self.variables[y as usize] {
             self.pc += 2;
         }
+        Ok(())
     }
 
     /// # `9XY0`
     /// Skips one instruction if the value in `VX` is not equal to the value in `VY`.
-    fn skip_if_vx_neq_vy(&mut self, x: u16, y: u16) {
+    fn skip_if_vx_neq_vy(&mut self, x: u16, y: u16) -> Result<(), EmulationError> {
         if self.variables[x as usize] != self.variables[y as usize] {
             self.pc += 2;
         }
+        Ok(())
     }
 
     /// # `8XY0`
     /// `VX` is set to the value of `VY`.
-    fn set_vx_to_vy(&mut self, x: u16, y: u16) {
+    fn set_vx_to_vy(&mut self, x: u16, y: u16) -> Result<(), EmulationError> {
         self.variables[x as usize] = self.variables[y as usize];
+        Ok(())
     }
 
     /// # `8XY1`
     /// `VX` is set to the OR of `VX` and `VY`, leaving `VY` unaffected.
-    fn vx_oreq_vy(&mut self, x: u16, y: u16) {
+    fn vx_oreq_vy(&mut self, x: u16, y: u16) -> Result<(), EmulationError> {
         self.variables[x as usize] |= self.variables[y as usize];
+        Ok(())
     }
 
     /// # `8XY2`
     /// `VX` is set to the AND of `VX` and `VY`, leaving `VY` unaffected.
-    fn vx_andeq_vy(&mut self, x: u16, y: u16) {
+    fn vx_andeq_vy(&mut self, x: u16, y: u16) -> Result<(), EmulationError> {
         self.variables[x as usize] &= self.variables[y as usize];
+        Ok(())
     }
 
     /// # `8XY3`
     /// `VX` is set to the XOR of `VX` and `VY`, leaving `VY` unaffected.
-    fn vx_xoreq_vy(&mut self, x: u16, y: u16) {
+    fn vx_xoreq_vy(&mut self, x: u16, y: u16) -> Result<(), EmulationError> {
         self.variables[x as usize] ^= self.variables[y as usize];
+        Ok(())
     }
 
     /// # `8XY4`
     /// `VX` is set to the value of `VX` plus the value of `VY`, leaving `VY` unaffected.
     /// If the result is larger than 255, the flag register `VF` is set to 1.
-    fn vx_pluseq_vy(&mut self, x: u16, y: u16) {
+    fn vx_pluseq_vy(&mut self, x: u16, y: u16) -> Result<(), EmulationError> {
         self.variables[0xf] = 0;
         let mut result: u32 =
             (self.variables[x as usize] as u32) + (self.variables[y as usize] as u32);
@@ -337,12 +371,13 @@ impl Emu {
             self.variables[0xf] = 1;
         }
         self.variables[x as usize] = result as u8;
+        Ok(())
     }
 
     /// # `8XY5`
     /// `VX` is set to the value of `VX` minus the value of `VY`, leaving `VY` unaffected.
     /// If the result has underflow, `VF` is set to 0. Otherwise, `VF` is set to 1.
-    fn vx_minuseq_vy(&mut self, x: u16, y: u16) {
+    fn vx_minuseq_vy(&mut self, x: u16, y: u16) -> Result<(), EmulationError> {
         self.variables[0xf] = 1;
         let mut x_val = self.variables[x as usize] as i16;
         let y_val = self.variables[y as usize] as i16;
@@ -352,12 +387,13 @@ impl Emu {
             self.variables[0xf] = 0;
         }
         self.variables[x as usize] = x_val as u8;
+        Ok(())
     }
 
     /// # `8XY7`
     /// `VX` is set to the value of `VY` minus the value of `VX`, leaving `VY` unaffected.
     /// If the result has underflow, `VX` is set to 0. Otherwise, `VF` is set to 1.
-    fn vx_equals_vy_minus_vx(&mut self, x: u16, y: u16) {
+    fn vx_equals_vy_minus_vx(&mut self, x: u16, y: u16) -> Result<(), EmulationError> {
         self.variables[0xf] = 1;
         let x_val = self.variables[x as usize] as i16;
         let mut y_val = self.variables[y as usize] as i16;
@@ -367,6 +403,7 @@ impl Emu {
             self.variables[0xf] = 0;
         }
         self.variables[x as usize] = y_val as u8;
+        Ok(())
     }
 
     // TODO: shift instructions and beyond
@@ -379,7 +416,7 @@ impl Emu {
     ///
     /// If any pixels on the screen were turned "off" by doing this,
     /// `VF` register is set to 1. Otherwise, it's set to 0.
-    fn display(&mut self, x: u16, y: u16, n: u16) {
+    fn display(&mut self, x: u16, y: u16, n: u16) -> Result<(), EmulationError> {
         // starting position wraps, so we can do the same as
         // binary anding (or modulo) the display
         // the actual drawing of the sprite does not wrap however
@@ -415,6 +452,8 @@ impl Emu {
                 sprite_byte <<= 1;
             }
         }
+
+        Ok(())
     }
 
     // -----------
@@ -469,6 +508,8 @@ impl Emu {
         println!("COSMAC VIP layout F key pressed");
     }
 }
+
+// these tests are kind of sparse since we have a few ROMs that test for us
 
 #[test]
 fn test_instruction_fetch() {
