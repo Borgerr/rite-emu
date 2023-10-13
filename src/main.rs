@@ -49,6 +49,7 @@ struct MainState {
 
 impl MainState {
     pub fn new(ctx: &mut Context, rom: Vec<u8>) -> Result<MainState, EmulationError> {
+        /*
         let mut squares: Vec<Mesh> = vec![];
         for i in 0..32 {
             for j in 0..64 {
@@ -68,11 +69,15 @@ impl MainState {
                 squares.push(rectangle.unwrap());
             }
         }
+        */
 
         let mut emulator = Emu::new();
         let _ = emulator.read_rom(rom);
 
-        Ok(MainState { emulator, squares })
+        Ok(MainState {
+            emulator,
+            squares: vec![],
+        })
     }
 }
 
@@ -82,7 +87,7 @@ impl EventHandler for MainState {
         // utilize a TimeContext for this
         const DESIRED_FPS: u32 = 60;
 
-        if ctx.time.check_update_time(DESIRED_FPS) {
+        while ctx.time.check_update_time(DESIRED_FPS) {
             // check if we're on target for 60 fps
             // and if so, do the thing.
             for _i in 0..11 {
@@ -94,17 +99,39 @@ impl EventHandler for MainState {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        let mut canvas = Canvas::from_frame(ctx, None);
-        for i in 0..(64 * 32) {
-            if self.emulator.pixels[i] {
-                // pixel is turned on
-                canvas.draw(&self.squares[i], DrawParam::default().color(Color::WHITE));
-            } else {
-                // pixel is turned off
-                canvas.draw(&self.squares[i], DrawParam::default().color(Color::BLACK));
+        let mut canvas = Canvas::from_frame(ctx, Color::WHITE);
+        for y in 0..32 {
+            for x in 0..64 {
+                let pixel_index = (x + (y * 64)) as usize;
+                let x = (x * 15) as f32;
+                let y = (y * 15) as f32;
+                if self.emulator.pixels[pixel_index] {
+                    // pixel is turned on
+                    canvas.draw(
+                        &graphics::Quad,
+                        DrawParam::default()
+                            .color(Color::WHITE)
+                            .scale([15., 15.])
+                            .dest([x, y]),
+                    );
+                } else {
+                    // pixel is turned off
+                    canvas.draw(
+                        &graphics::Quad,
+                        DrawParam::default()
+                            .color(Color::BLACK)
+                            .scale([15., 15.])
+                            .dest([x, y]),
+                    );
+                }
             }
         }
-        canvas.finish(ctx)
+
+        canvas.finish(ctx)?;
+
+        ggez::timer::yield_now();
+
+        Ok(())
     }
 
     fn key_down_event(

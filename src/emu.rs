@@ -271,7 +271,6 @@ impl Emu {
                     self.variables[0xf] = 1;
                 } else {
                     self.pixels[(x + y * 64) as usize] = true;
-                    println!("pixel {:?} turned on", (x, y));
                 }
             }
             x += 1;
@@ -288,7 +287,6 @@ impl Emu {
                     self.variables[0xf] = 1;
                 } else {
                     self.pixels[(x + y * 64) as usize] = true;
-                    println!("pixel {:?} turned on", (x, y));
                 }
             }
             x += 1;
@@ -305,7 +303,6 @@ impl Emu {
                     self.variables[0xf] = 1;
                 } else {
                     self.pixels[(x + y * 64) as usize] = true;
-                    println!("pixel {:?} turned on", (x, y));
                 }
             }
             x += 1;
@@ -322,7 +319,6 @@ impl Emu {
                     self.variables[0xf] = 1;
                 } else {
                     self.pixels[(x + y * 64) as usize] = true;
-                    println!("pixel {:?} turned on", (x, y));
                 }
             }
             x += 1;
@@ -339,7 +335,6 @@ impl Emu {
                     self.variables[0xf] = 1;
                 } else {
                     self.pixels[(x + y * 64) as usize] = true;
-                    println!("pixel {:?} turned on", (x, y));
                 }
             }
             x += 1;
@@ -356,7 +351,6 @@ impl Emu {
                     self.variables[0xf] = 1;
                 } else {
                     self.pixels[(x + y * 64) as usize] = true;
-                    println!("pixel {:?} turned on", (x, y));
                 }
             }
             x += 1;
@@ -373,7 +367,6 @@ impl Emu {
                     self.variables[0xf] = 1;
                 } else {
                     self.pixels[(x + y * 64) as usize] = true;
-                    println!("pixel {:?} turned on", (x, y));
                 }
             }
             x += 1;
@@ -390,7 +383,6 @@ impl Emu {
                     self.variables[0xf] = 1;
                 } else {
                     self.pixels[(x + y * 64) as usize] = true;
-                    println!("pixel {:?} turned on", (x, y));
                 }
             }
 
