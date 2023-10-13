@@ -389,139 +389,31 @@ impl Emu {
 
         //(x + y * 64) as usize
 
-        // could definitely be written prettier
-        // but I just want to get a working thing rn
         for byte_index in 0..n {
-            let sprite_byte = self.memory[(self.i + byte_index) as usize];
+            let mut sprite_byte = self.memory[(self.i + byte_index) as usize];
             if y == 31 {
                 break;
             }
 
             // for each bit in this sprite row...
-            if sprite_byte & 0x80 != 0 {
-                // leftmost bit is "turned on", 2^7
-                if self.pixels[(x + y * 64) as usize] {
-                    self.pixels[(x + y * 64) as usize] = false;
-                    self.variables[0xf] = 1;
-                } else {
-                    self.pixels[(x + y * 64) as usize] = true;
+            for i in 0..8 {
+                if sprite_byte & 0x80 != 0 {
+                    // leftmost bit is "turned on", 2^i
+                    if self.pixels[(x + y * 64) as usize] {
+                        self.pixels[(x + y * 64) as usize] = false;
+                        self.variables[0xf] = 1;
+                    } else {
+                        self.pixels[(x + y * 64) as usize] = true;
+                    }
                 }
-            }
-            x += 1;
-            if x == 63 {
-                x -= 1;
-                y += 1;
-                continue;
-            }
-
-            if sprite_byte & 0x40 != 0 {
-                // next leftmost bit, 2^6
-                if self.pixels[(x + y * 64) as usize] {
-                    self.pixels[(x + y * 64) as usize] = false;
-                    self.variables[0xf] = 1;
-                } else {
-                    self.pixels[(x + y * 64) as usize] = true;
+                x += 1;
+                if x == 63 || i == 7 {
+                    x -= i + 1;
+                    y += 1;
+                    break;
                 }
+                sprite_byte <<= 1;
             }
-            x += 1;
-            if x == 63 {
-                x -= 2;
-                y += 1;
-                continue;
-            }
-
-            if sprite_byte & 0x20 != 0 {
-                // next leftmost bit, 2^5
-                if self.pixels[(x + y * 64) as usize] {
-                    self.pixels[(x + y * 64) as usize] = false;
-                    self.variables[0xf] = 1;
-                } else {
-                    self.pixels[(x + y * 64) as usize] = true;
-                }
-            }
-            x += 1;
-            if x == 63 {
-                x -= 3;
-                y += 1;
-                continue;
-            }
-
-            if sprite_byte & 0x10 != 0 {
-                // next leftmost bit, 2^4
-                if self.pixels[(x + y * 64) as usize] {
-                    self.pixels[(x + y * 64) as usize] = false;
-                    self.variables[0xf] = 1;
-                } else {
-                    self.pixels[(x + y * 64) as usize] = true;
-                }
-            }
-            x += 1;
-            if x == 63 {
-                x -= 4;
-                y += 1;
-                continue;
-            }
-
-            if sprite_byte & 0x8 != 0 {
-                // next leftmost bit, 2^3
-                if self.pixels[(x + y * 64) as usize] {
-                    self.pixels[(x + y * 64) as usize] = false;
-                    self.variables[0xf] = 1;
-                } else {
-                    self.pixels[(x + y * 64) as usize] = true;
-                }
-            }
-            x += 1;
-            if x == 63 {
-                x -= 5;
-                y += 1;
-                continue;
-            }
-
-            if sprite_byte & 0x4 != 0 {
-                // next leftmost bit, 2^2
-                if self.pixels[(x + y * 64) as usize] {
-                    self.pixels[(x + y * 64) as usize] = false;
-                    self.variables[0xf] = 1;
-                } else {
-                    self.pixels[(x + y * 64) as usize] = true;
-                }
-            }
-            x += 1;
-            if x == 63 {
-                x -= 6;
-                y += 1;
-                continue;
-            }
-
-            if sprite_byte & 0x2 != 0 {
-                // 2^1
-                if self.pixels[(x + y * 64) as usize] {
-                    self.pixels[(x + y * 64) as usize] = false;
-                    self.variables[0xf] = 1;
-                } else {
-                    self.pixels[(x + y * 64) as usize] = true;
-                }
-            }
-            x += 1;
-            if x == 63 {
-                x -= 7;
-                y += 1;
-                continue;
-            }
-
-            if sprite_byte & 0x1 != 0 {
-                // 2^0
-                if self.pixels[(x + y * 64) as usize] {
-                    self.pixels[(x + y * 64) as usize] = false;
-                    self.variables[0xf] = 1;
-                } else {
-                    self.pixels[(x + y * 64) as usize] = true;
-                }
-            }
-
-            x -= 7;
-            y += 1;
         }
     }
 
