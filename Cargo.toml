@@ -8,3 +8,4 @@ authors = ["ash"]
 
 [dependencies]
 ggez = "0.9.3"
+rand = "0.8.5"

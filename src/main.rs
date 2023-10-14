@@ -1,7 +1,7 @@
 use ggez::conf::{WindowMode, WindowSetup};
 use ggez::event::{self, EventHandler};
 use ggez::graphics::{self, Canvas, Color, DrawParam};
-use ggez::input::keyboard;
+use ggez::input::keyboard::{self, KeyInput};
 use ggez::{Context, ContextBuilder, GameResult};
 
 use std::fs::read;
@@ -92,6 +92,8 @@ impl EventHandler for MainState {
                     println!("!ENCOUNTERED EMULATION ERROR!\n{}", e);
                     ctx.request_quit();
                 }
+                self.emulator.decrement_delay();
+                self.emulator.decrement_sound();
             }
         }
         Ok(())
@@ -148,28 +150,65 @@ impl EventHandler for MainState {
             0x01 => ctx.request_quit(), // escape key
 
             // first four correspond to 1 2 3 C on COSMAC VIP keypad layout
-            0x02 => self.emulator.keypad_1_press(), // QWERTY position of 1 key
-            0x03 => self.emulator.keypad_2_press(), // QWERTY position of 2 key
-            0x04 => self.emulator.keypad_3_press(), // QWERTY position of 3 key
-            0x05 => self.emulator.keypad_c_press(), // QWERTY position of 4 key
+            0x02 => self.emulator.keypress(0x1), // QWERTY position of 1 key
+            0x03 => self.emulator.keypress(0x2), // QWERTY position of 2 key
+            0x04 => self.emulator.keypress(0x3), // QWERTY position of 3 key
+            0x05 => self.emulator.keypress(0xc), // QWERTY position of 4 key
 
             // second four correspond to 4 5 6 D on COSMAC VIP keypad layout
-            0x10 => self.emulator.keypad_4_press(), // QWERTY position of Q key
-            0x11 => self.emulator.keypad_5_press(), // QWERTY position of W key
-            0x12 => self.emulator.keypad_6_press(), // QWERTY position of E key
-            0x13 => self.emulator.keypad_d_press(), // QWERTY position of R key
+            0x10 => self.emulator.keypress(0x4), // QWERTY position of Q key
+            0x11 => self.emulator.keypress(0x5), // QWERTY position of W key
+            0x12 => self.emulator.keypress(0x6), // QWERTY position of E key
+            0x13 => self.emulator.keypress(0xd), // QWERTY position of R key
 
             // third four correspond to 7 8 9 E on COSMAC VIP keypad layout
-            0x1e => self.emulator.keypad_7_press(), // QWERTY position of A key
-            0x1f => self.emulator.keypad_8_press(), // QWERTY position of S key
-            0x20 => self.emulator.keypad_9_press(), // QWERTY position of D key
-            0x21 => self.emulator.keypad_e_press(), // QWERTY position of F key
+            0x1e => self.emulator.keypress(0x7), // QWERTY position of A key
+            0x1f => self.emulator.keypress(0x8), // QWERTY position of S key
+            0x20 => self.emulator.keypress(0x9), // QWERTY position of D key
+            0x21 => self.emulator.keypress(0xe), // QWERTY position of F key
 
             // fourth four correspond to A 0 B F on COSMAC VIP keypad layout
-            0x2c => self.emulator.keypad_a_press(), // QWERTY position of Z key
-            0x2d => self.emulator.keypad_0_press(), // QWERTY position of X key
-            0x2e => self.emulator.keypad_b_press(), // QWERTY position of C key
-            0x2f => self.emulator.keypad_f_press(), // QWERTY position of V key
+            0x2c => self.emulator.keypress(0xa), // QWERTY position of Z key
+            0x2d => self.emulator.keypress(0x0), // QWERTY position of X key
+            0x2e => self.emulator.keypress(0xb), // QWERTY position of C key
+            0x2f => self.emulator.keypress(0xf), // QWERTY position of V key
+            _ => (),
+        }
+
+        Ok(())
+    }
+
+    fn key_up_event(&mut self, _ctx: &mut Context, input: KeyInput) -> Result<(), ggez::GameError> {
+        match input.scancode {
+            // all scancodes taken from
+            // https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
+            // since the URL has "linux" as a directory, I'm concerned if this works the same on windows
+            // we will check this out later but it all works on my machine
+            // MacOS can suffer (I don't have an accessible mac)
+
+            // first four correspond to 1 2 3 C on COSMAC VIP keypad layout
+            0x02 => self.emulator.keyrelease(0x1), // QWERTY position of 1 key
+            0x03 => self.emulator.keyrelease(0x2), // QWERTY position of 2 key
+            0x04 => self.emulator.keyrelease(0x3), // QWERTY position of 3 key
+            0x05 => self.emulator.keyrelease(0xc), // QWERTY position of 4 key
+
+            // second four correspond to 4 5 6 D on COSMAC VIP keypad layout
+            0x10 => self.emulator.keyrelease(0x4), // QWERTY position of Q key
+            0x11 => self.emulator.keyrelease(0x5), // QWERTY position of W key
+            0x12 => self.emulator.keyrelease(0x6), // QWERTY position of E key
+            0x13 => self.emulator.keyrelease(0xd), // QWERTY position of R key
+
+            // third four correspond to 7 8 9 E on COSMAC VIP keypad layout
+            0x1e => self.emulator.keyrelease(0x7), // QWERTY position of A key
+            0x1f => self.emulator.keyrelease(0x8), // QWERTY position of S key
+            0x20 => self.emulator.keyrelease(0x9), // QWERTY position of D key
+            0x21 => self.emulator.keyrelease(0xe), // QWERTY position of F key
+
+            // fourth four correspond to A 0 B F on COSMAC VIP keypad layout
+            0x2c => self.emulator.keyrelease(0xa), // QWERTY position of Z key
+            0x2d => self.emulator.keyrelease(0x0), // QWERTY position of X key
+            0x2e => self.emulator.keyrelease(0xb), // QWERTY position of C key
+            0x2f => self.emulator.keyrelease(0xf), // QWERTY position of V key
             _ => (),
         }
 

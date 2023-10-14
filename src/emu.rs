@@ -1,9 +1,11 @@
+use rand::Rng;
 use std::fmt::{Debug, Display};
 
 pub enum EmulationError {
-    StackOverflow, // emulated stack exceeds 16 entries
+    StackOverflow,      // emulated stack exceeds 16 entries
     LoadingError, // invoked when the ROM tried to load is larger than 4 kB, or something else happens
     VacantMemory, // invoked when we run into a sequence of 0000s or similar
+    UnknownInstruction, // ran into an instruction that looks kind of valid, but isn't ultimately
 }
 
 impl Debug for EmulationError {
@@ -15,6 +17,7 @@ impl Debug for EmulationError {
                 f,
                 "ROM ran out of memory and encountered an instruction like 0000"
             ),
+            Self::UnknownInstruction => write!(f, "ran into an unrecognized instruction"),
         }
     }
 }
@@ -28,6 +31,7 @@ impl Display for EmulationError {
                 f,
                 "ROM ran out of memory and encountered an instruction like 0000"
             ),
+            Self::UnknownInstruction => write!(f, "ran into an unrecognized instruction"),
         }
     }
 }
@@ -42,7 +46,7 @@ impl Display for EmulationError {
 /// * `i` - index register, points at various locations in memory
 /// * `delay_timer` - weird delay thing that CHIP-8 programs use
 /// * `sound_timer` - like `delay_timer` but for sound
-/// * `variables` - 16 one byte variable registers.
+/// * `variables` - 16 one byte variable registers
 pub struct Emu {
     pub pixels: Vec<bool>, // true if on, false if off.
     the_stack: Vec<u16>,   // stack for 16-bit addresses
@@ -53,8 +57,10 @@ pub struct Emu {
     sound_timer: u8,       // functions like the delay timer, but gives a beeping noise
     // as long as it isn't 0
     variables: Vec<u8>, // 16 variable registers- could be represented instead with 0 - F.
-                        // F (the last register) is used as a flag register,
-                        // i.e. instructions may set it to 1 or 0 from some rule.
+    // F (the last register) is used as a flag register,
+    // i.e. instructions may set it to 1 or 0 from some rule.
+    keys: Vec<bool>, // represent each of the 16 keys,
+                     // reflects true if this key is held down and false if otherwise
 }
 
 impl Emu {
@@ -104,6 +110,9 @@ impl Emu {
             delay_timer: 0, // special instructions for incrementing the timers
             sound_timer: 0,
             variables: vec![0; 16], // should always have only 16 elements
+            keys: vec![false; 16],  // only 16 keys;
+                                    // the text printed on the original COSMAC VIP layout
+                                    // corresponds to its index in this vector
         }
     }
 
@@ -200,7 +209,7 @@ impl Emu {
 
     /// CHIP-8s have a very simple instruction set,
     /// so we combine these two steps into one,
-    /// and then send that information off to some other thing.
+    /// altering the state depending on the operation
     fn decode_and_execute(&mut self, opcode: u16) -> Result<(), EmulationError> {
         let (instr_type, x, y, n, nn, nnn) = Self::extract_from_opcode(opcode);
         match instr_type {
@@ -208,7 +217,7 @@ impl Emu {
                 0x0e0 => self.clear_screen(),
                 0x0ee => self.return_from_subroutine(),
                 0x000 => Err(EmulationError::VacantMemory),
-                _ => Ok(()),
+                _ => Err(EmulationError::UnknownInstruction),
             },
             0x1 => self.jump(nnn),
             0x6 => self.set_register(x, nn),
@@ -228,8 +237,19 @@ impl Emu {
                 0x4 => self.vx_pluseq_vy(x, y),
                 0x5 => self.vx_minuseq_vy(x, y),
                 0x7 => self.vx_equals_vy_minus_vx(x, y),
-                _ => Ok(()),
+                0x6 => self.shift_right_1bit(x, y),
+                0xe => self.shift_left_1bit(x, y),
+                _ => Err(EmulationError::UnknownInstruction),
             },
+            0xb => self.jump_with_offset(nnn),
+            0xc => self.random_gen(x, nn),
+            0xe => match nn {
+                0x9e => self.skip_if_key(x),
+                0xa1 => self.skip_if_not_key(x),
+                _ => Err(EmulationError::UnknownInstruction),
+            },
+
+            //_ => Err(EmulationError::UnknownInstruction),
             _ => Ok(()),
         }
     }
@@ -406,7 +426,93 @@ impl Emu {
         Ok(())
     }
 
-    // TODO: shift instructions and beyond
+    /// # `8XY6`
+    /// THIS INSTRUCTION IS AMBIGUOUS!
+    /// Some implementations may have a different functioning,
+    /// specifically setting `VX` to `VY` before shifting that value to the left
+    /// by one bit.
+    ///
+    /// Shifts the value in `VX` to the left by one bit,
+    /// and then sets `VF` to the bit that was shifted out.
+    fn shift_left_1bit(&mut self, x: u16, _y: u16) -> Result<(), EmulationError> {
+        // y is of course unused at the moment
+        // but we can change this implementation to follow the other behavior
+        // by only altering this function (or adding some larger-scale configuration)
+        let to_shift = self.variables[x as usize];
+        if to_shift & 0xf0 != 0 {
+            // leftmost bit is 1
+            self.variables[0xf] = 1;
+        } else {
+            self.variables[0xf] = 0;
+        }
+        self.variables[x as usize] = to_shift << 1;
+
+        Ok(())
+    }
+
+    /// # `8XYE`
+    /// THIS INSTRUCTION IS AMBIGUOUS!
+    /// Some implementations may have a different functioning,
+    /// specifically setting `VX` to `VY` before shifting that value to the right
+    /// by one bit.
+    ///
+    /// Shifts the value in `VX` to the right by one bit,
+    /// and then sets `VF` to the bit that was shifted out.
+    fn shift_right_1bit(&mut self, x: u16, _y: u16) -> Result<(), EmulationError> {
+        // same situation as Emu.shift_left_1bit
+        let to_shift = self.variables[x as usize];
+        if to_shift & 0x1 != 0 {
+            // rightmost bit is 1
+            self.variables[0xf] = 1;
+        } else {
+            self.variables[0xf] = 0;
+        }
+        self.variables[x as usize] = to_shift >> 1;
+
+        Ok(())
+    }
+
+    /// # `BNNN`
+    /// THIS INSTRUCTION IS AMBIGUOUS!
+    /// Some implementations may have a different functioning,
+    /// basically working as an alternate `BXNN`.
+    ///
+    /// Program counter jumps to the value of
+    /// `NNN` plus the value stored in `V0`.
+    fn jump_with_offset(&mut self, nnn: u16) -> Result<(), EmulationError> {
+        self.pc = nnn + (self.variables[0x0] as u16);
+        Ok(())
+    }
+
+    /// # `CXNN`
+    /// Generates a random number, binary ANDs with value `NN`,
+    /// and puts that result in `VX`.
+    fn random_gen(&mut self, x: u16, nn: u16) -> Result<(), EmulationError> {
+        let mut rng = rand::thread_rng();
+        let generated: u8 = rng.gen();
+        self.variables[x as usize] = generated & (nn as u8);
+        Ok(())
+    }
+
+    // TODO: EX9E, EXA1 instructions and beyond
+
+    fn skip_if_key(&mut self, x: u16) -> Result<(), EmulationError> {
+        let key_pos = self.variables[x as usize] as usize;
+        if self.keys[key_pos] {
+            self.pc += 2;
+        }
+
+        Ok(())
+    }
+
+    fn skip_if_not_key(&mut self, x: u16) -> Result<(), EmulationError> {
+        let key_pos = self.variables[x as usize] as usize;
+        if !self.keys[key_pos] {
+            self.pc += 2;
+        }
+
+        Ok(())
+    }
 
     /// # `DXYN`
     /// Draws an `N` pixels tall sprite from memory location
@@ -459,53 +565,13 @@ impl Emu {
     // -----------
     // KEYPRESSES
     // -----------
-    pub fn keypad_1_press(&mut self) {
-        println!("COSMAC VIP layout 1 key pressed");
+    /// tells the emulator that a key was pressed
+    pub fn keypress(&mut self, key_index: usize) {
+        self.keys[key_index] = true;
     }
-    pub fn keypad_2_press(&mut self) {
-        println!("COSMAC VIP layout 2 key pressed");
-    }
-    pub fn keypad_3_press(&mut self) {
-        println!("COSMAC VIP layout 3 key pressed");
-    }
-    pub fn keypad_c_press(&mut self) {
-        println!("COSMAC VIP layout C key pressed");
-    }
-    pub fn keypad_4_press(&mut self) {
-        println!("COSMAC VIP layout 4 key pressed");
-    }
-    pub fn keypad_5_press(&mut self) {
-        println!("COSMAC VIP layout 5 key pressed");
-    }
-    pub fn keypad_6_press(&mut self) {
-        println!("COSMAC VIP layout 6 key pressed");
-    }
-    pub fn keypad_d_press(&mut self) {
-        println!("COSMAC VIP layout D key pressed");
-    }
-    pub fn keypad_7_press(&mut self) {
-        println!("COSMAC VIP layout 7 key pressed");
-    }
-    pub fn keypad_8_press(&mut self) {
-        println!("COSMAC VIP layout 8 key pressed");
-    }
-    pub fn keypad_9_press(&mut self) {
-        println!("COSMAC VIP layout 9 key pressed");
-    }
-    pub fn keypad_e_press(&mut self) {
-        println!("COSMAC VIP layout E key pressed");
-    }
-    pub fn keypad_a_press(&mut self) {
-        println!("COSMAC VIP layout A key pressed");
-    }
-    pub fn keypad_0_press(&mut self) {
-        println!("COSMAC VIP layout 0 key pressed");
-    }
-    pub fn keypad_b_press(&mut self) {
-        println!("COSMAC VIP layout B key pressed");
-    }
-    pub fn keypad_f_press(&mut self) {
-        println!("COSMAC VIP layout F key pressed");
+    /// tells the emulator that a key was released
+    pub fn keyrelease(&mut self, key_index: usize) {
+        self.keys[key_index] = false;
     }
 }
 
