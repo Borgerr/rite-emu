@@ -248,9 +248,21 @@ impl Emu {
                 0xa1 => self.skip_if_not_key(x),
                 _ => Err(EmulationError::UnknownInstruction),
             },
+            0xf => match nn {
+                0x07 => self.set_vx_to_delaytmr(x),
+                0x15 => self.set_delaytmr_to_vx(x),
+                0x18 => self.set_soundtmr_to_vx(x),
+                0x1e => self.add_to_index(x),
+                0x0a => self.get_key(x),
+                0x29 => self.font_character(x),
+                0x33 => self.binary_decimal_conversion(x),
+                0x55 => self.store_memory(x),
+                0x65 => self.load_memory(x),
+                _ => Err(EmulationError::UnknownInstruction),
+            },
 
-            //_ => Err(EmulationError::UnknownInstruction),
-            _ => Ok(()),
+            _ => Err(EmulationError::UnknownInstruction),
+            //_ => Ok(()),
         }
     }
 
@@ -494,8 +506,9 @@ impl Emu {
         Ok(())
     }
 
-    // TODO: EX9E, EXA1 instructions and beyond
-
+    /// # `EX9E`
+    /// Program counter skips one instruction if
+    /// the represented key in `VX` is pressed.
     fn skip_if_key(&mut self, x: u16) -> Result<(), EmulationError> {
         let key_pos = self.variables[x as usize] as usize;
         if self.keys[key_pos] {
@@ -505,10 +518,108 @@ impl Emu {
         Ok(())
     }
 
+    /// # `EXA1`
+    /// Program counter skips one instruction if
+    /// the represented key in `VX` is not pressed.
     fn skip_if_not_key(&mut self, x: u16) -> Result<(), EmulationError> {
         let key_pos = self.variables[x as usize] as usize;
         if !self.keys[key_pos] {
             self.pc += 2;
+        }
+
+        Ok(())
+    }
+
+    /// # `FX07`
+    /// Sets `VX` to the current value of the delay timer
+    fn set_vx_to_delaytmr(&mut self, x: u16) -> Result<(), EmulationError> {
+        self.variables[x as usize] = self.delay_timer;
+        Ok(())
+    }
+
+    /// # `FX15`
+    /// Sets the delay timer to the value in `VX`
+    fn set_delaytmr_to_vx(&mut self, x: u16) -> Result<(), EmulationError> {
+        self.delay_timer = self.variables[x as usize];
+        Ok(())
+    }
+
+    /// # `FX18`
+    /// Sets the sound timer to the value in `VX`
+    fn set_soundtmr_to_vx(&mut self, x: u16) -> Result<(), EmulationError> {
+        self.sound_timer = self.variables[x as usize];
+        Ok(())
+    }
+
+    /// # `FX1E`
+    /// Index register is changed to the sum of itself
+    /// with the value in `VX`
+    fn add_to_index(&mut self, x: u16) -> Result<(), EmulationError> {
+        self.i += self.variables[x as usize] as u16;
+        Ok(())
+    }
+
+    /// # `FX0A`
+    /// Instruction blocks further instructions until key input.
+    /// If a key is never pressed, we just loop forever.
+    /// Timers will continue to be decremented.
+    ///
+    /// If a key is pressed, its hexadecimal value is placed in `VX`
+    /// and execution continues.
+    fn get_key(&mut self, x: u16) -> Result<(), EmulationError> {
+        for key_pos in 0..self.keys.len() {
+            if self.keys[key_pos] {
+                self.variables[x as usize] = key_pos as u8;
+                return Ok(());
+            }
+        }
+        self.pc -= 2;
+        Ok(())
+    }
+
+    /// # `FX29`
+    /// Index register is set to the address of the hexadecimal character in `VX`.
+    fn font_character(&mut self, x: u16) -> Result<(), EmulationError> {
+        self.i = self.variables[x as usize] as u16;
+        self.i *= 5; // each char starts at an offset of 5 after font memory position
+        self.i += 0x050; // start of font index in memory
+        Ok(())
+    }
+
+    /// # `FX33`
+    /// Takes the number in `VX` and converts to three decimal digits, storing these digits in memory
+    /// at address in the index register.
+    ///
+    /// For example, 156 would put 1 in address at I, 5 in address I + 1, and 6 in address I + 2.
+    fn binary_decimal_conversion(&mut self, x: u16) -> Result<(), EmulationError> {
+        let val = self.variables[x as usize] as u16;
+        let ones = val % 10;
+        let tens = ((val % 100) - ones) / 10;
+        let hundreds = ((val % 1000) - ones - tens) / 100;
+
+        self.memory[self.i as usize] = hundreds as u8;
+        self.memory[(self.i + 1) as usize] = tens as u8;
+        self.memory[(self.i + 2) as usize] = ones as u8;
+
+        Ok(())
+    }
+
+    /// # `FX55`
+    /// Value of each variable register from `V0` to `VX` inclusive is stored in successive memory addresses,
+    /// starting with the address that the index register is currently pointing at.
+    fn store_memory(&mut self, x: u16) -> Result<(), EmulationError> {
+        for var in 0..x + 1 {
+            self.memory[(self.i + var) as usize] = self.variables[var as usize];
+        }
+
+        Ok(())
+    }
+
+    /// # `FX65`
+    /// Does the same thing as `store_memory`, but loads them into the variable registers instead.`
+    fn load_memory(&mut self, x: u16) -> Result<(), EmulationError> {
+        for var in 0..x + 1 {
+            self.variables[var as usize] = self.memory[(self.i + var) as usize];
         }
 
         Ok(())
@@ -565,11 +676,11 @@ impl Emu {
     // -----------
     // KEYPRESSES
     // -----------
-    /// tells the emulator that a key was pressed
+    /// tells the emulator that key at `key_index` was pressed
     pub fn keypress(&mut self, key_index: usize) {
         self.keys[key_index] = true;
     }
-    /// tells the emulator that a key was released
+    /// tells the emulator that key at `key_index` was released
     pub fn keyrelease(&mut self, key_index: usize) {
         self.keys[key_index] = false;
     }
