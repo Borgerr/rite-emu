@@ -25,3 +25,10 @@ Z X C V
 7 8 9 E
 A 0 B F
 ```
+
+## Things left to be done
+- Beeping when sound timer is above 0, although I'm not a huge fan of that feature.
+- Configurations for other implementation features, e.g. the functioning of instructions like `8XY6`
+
+## Awesome people and resources
+Everybody in the [emudev discord server](<https://discord.gg/dkmJAes>), [r/EmuDev](<https://www.reddit.com/r/EmuDev/>), and [Tobias' lovely blog](<https://tobiasvl.github.io/blog/write-a-chip-8-emulator/>).
